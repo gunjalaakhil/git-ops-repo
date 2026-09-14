@@ -35,7 +35,7 @@ pipeline {
             steps {
 
                 sh '''
-                helm lint .
+                helm lint ./mychart
                 '''
 
             }
@@ -49,7 +49,7 @@ pipeline {
                 sh '''
                 helm template \
                 mychart \
-                . \
+                ./mychart \
                 -f values.yaml > rendered.yaml
                 '''
 
@@ -64,7 +64,7 @@ pipeline {
                 sh '''
                 helm diff upgrade \
                 mychart \
-                . \
+                ./mychart \
                 -f values.yaml \
                 --allow-unreleased || true
                 '''
