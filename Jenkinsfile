@@ -8,6 +8,15 @@ pipeline {
         ARGOCD_URL = "https://34.228.63.131:8080"
 
     }
+    parameters {
+
+    string(
+        name: 'PR_NUMBER',
+        defaultValue: '',
+        description: 'GitHub Pull Request Number'
+    )
+
+}
 
     stages {
 
@@ -77,34 +86,32 @@ pipeline {
 
         }
 
-        stage('Merge PR') {
+ stage('Merge PR') {
 
-            steps {
+    steps {
 
-                withCredentials([
-                    string(
-                        credentialsId: 'github-token',
-                        variable: 'GITHUB_TOKEN'
-                    )
-                ]) {
+        withCredentials([
+            string(
+                credentialsId: 'github-token',
+                variable: 'GITHUB_TOKEN'
+            )
+        ]) {
 
-                    sh '''
+            sh '''
 
-                    gh auth login \
-                    --with-token <<< $GITHUB_TOKEN
+            echo "$GITHUB_TOKEN" | gh auth login --with-token
 
-                    gh pr merge \
-                    --merge \
-                    --delete-branch
+            gh pr merge ${PR_NUMBER} \
+            --merge \
+            --delete-branch
 
-                    '''
-
-                }
-
-            }
+            '''
 
         }
 
+    }
+
+}
         stage('Capture Deployment Commit') {
 
             steps {
