@@ -5,7 +5,7 @@ pipeline {
     environment {
 
         APP_NAME = "mychart"
-        ARGOCD_URL = "https://MINIKUBE-IP:32080"
+        ARGOCD_URL = "https://34.228.63.131:8080"
 
     }
 
