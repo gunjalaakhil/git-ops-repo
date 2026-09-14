@@ -4,28 +4,19 @@ pipeline {
 
     environment {
 
-        APP_NAME = "mychart"
-        ARGOCD_URL = "https://34.228.63.131:8080"
+        APP_NAME   = "mychart"
+
+        // Use ArgoCD server IP/URL
+        ARGOCD_URL = "34.228.63.131:8080"
 
     }
-    parameters {
-
-    string(
-        name: 'PR_NUMBER',
-        defaultValue: '',
-        description: 'GitHub Pull Request Number'
-    )
-
-}
 
     stages {
 
         stage('Checkout') {
 
             steps {
-
                 checkout scm
-
             }
 
         }
@@ -50,7 +41,7 @@ pipeline {
                 helm template \
                 mychart \
                 ./mychart \
-                -f values.yaml > rendered.yaml
+                -f ./mychart/values.yaml > rendered.yaml
                 '''
 
             }
@@ -65,7 +56,7 @@ pipeline {
                 helm diff upgrade \
                 mychart \
                 ./mychart \
-                -f values.yaml \
+                -f ./mychart/values.yaml \
                 --allow-unreleased || true
                 '''
 
@@ -73,45 +64,6 @@ pipeline {
 
         }
 
-        stage('Approval') {
-
-            steps {
-
-                input(
-                    message: 'Review Helm Diff and Approve Deployment',
-                    ok: 'Merge & Deploy'
-                )
-
-            }
-
-        }
-
- stage('Merge PR') {
-
-    steps {
-
-        withCredentials([
-            string(
-                credentialsId: 'github-token',
-                variable: 'GITHUB_TOKEN'
-            )
-        ]) {
-
-            sh '''
-
-            echo "$GITHUB_TOKEN" | gh auth login --with-token
-
-            gh pr merge ${PR_NUMBER} \
-            --merge \
-            --delete-branch
-
-            '''
-
-        }
-
-    }
-
-}
         stage('Capture Deployment Commit') {
 
             steps {
@@ -159,11 +111,6 @@ pipeline {
 
         }
 
-        /*
-        Auto-sync already enabled.
-        We only wait for sync.
-        */
-
         stage('Wait For Sync') {
 
             steps {
@@ -200,16 +147,14 @@ pipeline {
                         '''
 
                         sh '''
-
                         argocd app get mychart
-
                         '''
 
                         env.DEPLOY_STATUS = "SUCCESS"
 
                     }
 
-                    catch(Exception ex) {
+                    catch (Exception ex) {
 
                         env.DEPLOY_STATUS = "FAILED"
 
@@ -239,7 +184,7 @@ pipeline {
 
                         id: 'DeployDecision',
 
-                        message: 'Deployment unhealthy. Choose Action.',
+                        message: 'Deployment Failed. Select Action',
 
                         parameters: [
 
@@ -252,11 +197,13 @@ pipeline {
                                     'ABORT'
                                 ].join('\n'),
 
-                                description: 'Select Action'
-
+                                description: 'Choose Action'
                             )
+
                         ]
+
                     )
+
                 }
 
             }
@@ -293,37 +240,41 @@ pipeline {
 
         }
 
-stage('Rollback') {
+        stage('Rollback') {
 
-    when {
-        expression {
-            env.DEPLOY_ACTION == 'ROLLBACK'
+            when {
+
+                expression {
+                    env.DEPLOY_ACTION == "ROLLBACK"
+                }
+
+            }
+
+            steps {
+
+                withCredentials([
+                    string(
+                        credentialsId: 'github-token',
+                        variable: 'GITHUB_TOKEN'
+                    )
+                ]) {
+
+                    sh '''
+
+                    git config user.email "gakhil0071@gmail.com"
+                    git config user.name "gunjalaakhil"
+
+                    git revert ${DEPLOY_COMMIT} --no-edit
+
+                    git push origin main
+
+                    '''
+
+                }
+
+            }
+
         }
-    }
-
-    steps {
-
-        withCredentials([
-            string(
-                credentialsId: 'github-token',
-                variable: 'GITHUB_TOKEN'
-            )
-        ]) {
-
-            sh """
-                cd gitops-repo
-
-                git config user.email "gakhil0071@gmail.com"
-                git config user.name "gunjalakhil"
-
-                git revert ${DEPLOY_COMMIT} --no-edit
-
-                git push https://github.com/gunjalaakhil/git-ops-repo.git main
-            """
-        }
-    }
-}
-
 
         stage('Rollback Validation') {
 
@@ -363,9 +314,7 @@ stage('Rollback') {
 
             steps {
 
-                error(
-                    "Deployment Aborted By User"
-                )
+                error('Deployment Aborted By User')
 
             }
 
@@ -378,9 +327,11 @@ stage('Rollback') {
         success {
 
             echo '''
+
 ==========================================
 DEPLOYMENT SUCCESSFUL
 ==========================================
+
 '''
 
         }
@@ -388,9 +339,11 @@ DEPLOYMENT SUCCESSFUL
         failure {
 
             echo '''
+
 ==========================================
 DEPLOYMENT FAILED
 ==========================================
+
 '''
 
         }
@@ -398,9 +351,11 @@ DEPLOYMENT FAILED
         aborted {
 
             echo '''
+
 ==========================================
 DEPLOYMENT ABORTED
 ==========================================
+
 '''
 
         }
